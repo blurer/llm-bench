@@ -6,9 +6,9 @@
 # Usage: sudo ./fan-control.sh [auto|50|75|100] [all|cpu|gpu]
 #
 # Fan header mapping (verified):
-#   pwm1 = GPU cooler fan (intake or exhaust)
+#   pwm1 = case exhaust fan (NR200)
 #   pwm2 = CPU fan
-#   pwm5 = GPU cooler fan (intake or exhaust)
+#   pwm5 = GPU cooler intake fan (Morpheus II)
 #
 
 set -e

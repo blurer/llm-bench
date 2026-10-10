@@ -44,7 +44,7 @@ Throughput impact (Ollama, qwen3:120b Vulkan): quiet 27.9 t/s vs balanced 29.5 t
 
 #### GPU fan control (scripts vendored in [`titan-cooling/`](titan-cooling/))
 
-The stock blower is gone; the Noctua fans run off motherboard PWM headers (the driver reports the GPU as fanless). Two enabled services manage them:
+The stock blower is gone; the GPU intake fan and the NR200 case-exhaust fan run off motherboard PWM headers (the driver reports the GPU as fanless). Two enabled services manage them:
 
 - `fan-control.service` — pins **75%** at boot (`fan-control.sh 75`)
 - `fan-control-auto.service` — daemon (3s interval, 5°C hysteresis) stepping 50/75/100% at GPU 60/70/80°C, auto below 45°C (same ladder for CPU/chipset/board sensors)

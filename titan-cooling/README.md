@@ -1,15 +1,15 @@
 # titan-cooling
 
-Fan control for a **fanless-modded NVIDIA TITAN RTX**: stock blower removed, cooled by a **Morpheus II** air cooler with **2x Noctua slim 120mm** fans, all driven from motherboard PWM headers on an **ASUS ROG STRIX B550-I**. Canonical copy lives on the server at `~/fan-control/`.
+Fan control for a **fanless-modded NVIDIA TITAN RTX**: stock blower removed, cooled by a **Morpheus II** air cooler with one **Noctua slim 120mm** as GPU intake, plus a second **Noctua slim 120mm** as case exhaust (Cooler Master NR200), all driven from motherboard PWM headers on an **ASUS ROG STRIX B550-I**. Canonical copy lives on the server at `~/fan-control/`.
 
-**Setup-specific.** The PWM channel mapping below is for this board + cooler combination; adjust for your own layout (`sensors`/`/sys/class/hwmon` to discover channels).
+**Setup-specific.** The PWM channel mapping below is for this board + case + cooler combination; adjust for your own layout (`sensors`/`/sys/class/hwmon` to discover channels).
 
 ## PWM mapping (verified)
 
 | Channel | Fan |
 |---|---|
-| `pwm1` | GPU cooler (Noctua #1) |
-| `pwm5` | GPU cooler (Noctua #2) |
+| `pwm1` | Case exhaust (NR200) |
+| `pwm5` | GPU cooler intake (Morpheus II) |
 | `pwm2` | CPU fan |
 
 ## Contents
