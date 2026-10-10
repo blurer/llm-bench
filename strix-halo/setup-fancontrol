@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Setup DKMS + systemd service for automatic fan control across kernel updates.
+#
+# What this does:
+#   1. Installs dkms (if needed)
+#   2. Registers the ec_su_axb35 module with DKMS (auto-rebuilds on kernel updates)
+#   3. Installs ec-fancontrol script to /usr/local/bin/
+#   4. Installs and enables a systemd service to apply fan curves on boot
+#
+# Run once: sudo ./setup-fancontrol
+
+set -euo pipefail
+
+MODULE_NAME="ec_su_axb35"
+MODULE_VERSION="0.1"
+MODULE_SRC="${MODULE_SRC:-$HOME/dev/ec-su_axb35-linux}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+die() { echo "error: $*" >&2; exit 1; }
+
+[[ $EUID -eq 0 ]] || die "must be run as root (use sudo)"
+[[ -d "$MODULE_SRC" ]] || die "module source not found at ${MODULE_SRC}"
+
+echo "=== Fan control setup ==="
+
+# 1. Install dkms if not present
+if ! command -v dkms &>/dev/null; then
+    echo "installing dkms..."
+    dnf install -y dkms
+fi
+
+# 2. Register module with DKMS
+DKMS_SRC="/usr/src/${MODULE_NAME}-${MODULE_VERSION}"
+
+if dkms status "${MODULE_NAME}/${MODULE_VERSION}" 2>/dev/null | grep -q "${MODULE_NAME}"; then
+    echo "dkms: removing old registration..."
+    dkms remove "${MODULE_NAME}/${MODULE_VERSION}" --all 2>/dev/null || true
+fi
+
+echo "dkms: linking source to ${DKMS_SRC}..."
+rm -f "$DKMS_SRC"
+ln -sf "$MODULE_SRC" "$DKMS_SRC"
+
+echo "dkms: registering ${MODULE_NAME}/${MODULE_VERSION}..."
+dkms add "${MODULE_NAME}/${MODULE_VERSION}"
+
+echo "dkms: building for kernel $(uname -r)..."
+dkms build "${MODULE_NAME}/${MODULE_VERSION}" -k "$(uname -r)"
+
+echo "dkms: installing for kernel $(uname -r)..."
+dkms install "${MODULE_NAME}/${MODULE_VERSION}" -k "$(uname -r)"
+
+# 3. Install ec-fancontrol script
+echo "installing ec-fancontrol to /usr/local/bin/..."
+install -m 0755 "${SCRIPT_DIR}/ec-fancontrol" /usr/local/bin/ec-fancontrol
+
+# 4. Install and enable systemd service
+echo "installing systemd service..."
+install -m 0644 "${SCRIPT_DIR}/ec-fancontrol.service" /etc/systemd/system/ec-fancontrol.service
+systemctl daemon-reload
+systemctl enable ec-fancontrol.service
+
+echo ""
+echo "=== Done ==="
+echo "  DKMS will auto-rebuild the module on kernel updates."
+echo "  systemd will auto-apply fan curves on boot."
+echo ""
+echo "  Verify: dkms status"
+echo "  Service: systemctl status ec-fancontrol"

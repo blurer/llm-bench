@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Fan control setup for GMKtec Strix Halo (Sixunited AXB35-02)
+# Uses the ec-su_axb35-linux kernel module to set power mode and fan curves.
+
+set -euo pipefail
+
+EC_CLASS="/sys/class/ec_su_axb35"
+MODULE="ec_su_axb35"
+MODULE_SRC="${MODULE_SRC:-$HOME/dev/ec-su_axb35-linux}"
+
+# Defaults
+POWER_MODE="quiet"
+RAMPUP="70,80,88,95,97"
+RAMPDOWN="60,65,85,93,96"
+
+usage() {
+    cat <<EOF
+Fan control for GMKtec Strix Halo (Sixunited AXB35-02).
+
+Loads the ec_su_axb35 kernel module and configures APU power mode
+and custom fan curves via sysfs. Settings are volatile and must be
+reapplied after each reboot. The module must be rebuilt after kernel
+updates.
+
+Usage: fancontrol [OPTIONS] [COMMAND]
+
+Commands:
+  apply         Load module, apply power mode and fan curves (default)
+  rebuild       Rebuild module for current kernel, then apply
+  status        Show current power mode, temps, and fan speeds
+
+Options:
+  -m MODE       Power mode: quiet, balanced, performance (default: quiet)
+  -h, --help    Show this help
+
+Power modes:
+  quiet         54W STAPM / 100W fast PPT / 54W slow PPT
+  balanced      85W STAPM / 120W fast PPT / 120W slow PPT
+  performance   120W STAPM / 140W fast PPT / 120W slow PPT
+
+Fan curves (°C thresholds for levels 1-5):
+  ramp-up:      ${RAMPUP}
+  ramp-down:    ${RAMPDOWN}
+
+Examples:
+  sudo fancontrol                  # apply quiet mode (default)
+  sudo fancontrol -m balanced      # apply balanced mode
+  sudo fancontrol rebuild          # rebuild module after kernel update
+  fancontrol status                # check current state (no root needed)
+
+Driver: https://github.com/cmetz/ec-su_axb35-linux
+Wiki:   https://strixhalo.wiki/Guides/Sixunited_AXB35/Power_Mode_and_Fan_Control
+EOF
+    exit 0
+}
+
+die() { echo "error: $*" >&2; exit 1; }
+
+need_root() {
+    [[ $EUID -eq 0 ]] || die "must be run as root (use sudo)"
+}
+
+module_loaded() {
+    lsmod | grep -q "^${MODULE} "
+}
+
+load_module() {
+    if module_loaded; then
+        echo "module already loaded"
+    else
+        echo "loading ${MODULE}..."
+        modprobe "$MODULE"
+    fi
+    [[ -d "$EC_CLASS" ]] || die "sysfs not found at ${EC_CLASS}"
+}
+
+rebuild_module() {
+    [[ -d "$MODULE_SRC" ]] || die "module source not found at ${MODULE_SRC}"
+    echo "rebuilding ${MODULE} for kernel $(uname -r)..."
+    make -C "$MODULE_SRC" clean
+    make -C "$MODULE_SRC"
+    make -C "$MODULE_SRC" install
+    if module_loaded; then
+        echo "reloading module..."
+        rmmod "$MODULE"
+    fi
+    load_module
+}
+
+apply() {
+    echo "power mode: ${POWER_MODE}"
+    echo "$POWER_MODE" > "${EC_CLASS}/apu/power_mode"
+
+    for fan in fan1 fan2; do
+        echo "$RAMPUP"   > "${EC_CLASS}/${fan}/rampup_curve"
+        echo "$RAMPDOWN" > "${EC_CLASS}/${fan}/rampdown_curve"
+        echo "curve"     > "${EC_CLASS}/${fan}/mode"
+    done
+    echo "fan curves set (rampup: ${RAMPUP}, rampdown: ${RAMPDOWN})"
+}
+
+status() {
+    [[ -d "$EC_CLASS" ]] || die "module not loaded"
+    printf "%-14s %s\n" "power mode:" "$(cat "${EC_CLASS}/apu/power_mode")"
+    printf "%-14s %s°C\n" "cpu temp:" "$(cat "${EC_CLASS}/temp1/temp")"
+    for fan in fan1 fan2 fan3; do
+        local rpm mode level
+        rpm=$(cat "${EC_CLASS}/${fan}/rpm")
+        mode=$(cat "${EC_CLASS}/${fan}/mode")
+        level=$(cat "${EC_CLASS}/${fan}/level")
+        printf "%-14s %s RPM  (mode: %s, level: %s)\n" "${fan}:" "$rpm" "$mode" "$level"
+    done
+}
+
+# Handle --help before getopts
+[[ "${1:-}" == "--help" ]] && usage
+
+# Parse options
+while getopts "m:h" opt; do
+    case $opt in
+        m) POWER_MODE="$OPTARG" ;;
+        h) usage ;;
+        *) usage ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+case "${POWER_MODE}" in
+    quiet|balanced|performance) ;;
+    *) die "invalid power mode: ${POWER_MODE}" ;;
+esac
+
+CMD="${1:-apply}"
+
+case "$CMD" in
+    apply)
+        need_root
+        load_module
+        apply
+        status
+        ;;
+    rebuild)
+        need_root
+        rebuild_module
+        apply
+        status
+        ;;
+    status)
+        status
+        ;;
+    *)
+        die "unknown command: ${CMD}"
+        ;;
+esac

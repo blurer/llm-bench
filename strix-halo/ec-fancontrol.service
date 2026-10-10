@@ -1,0 +1,12 @@
+[Unit]
+Description=EC fan control for Sixunited AXB35-02 (Strix Halo)
+After=systemd-modules-load.service
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ec-fancontrol apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
