@@ -35,8 +35,13 @@ Throughput impact (Ollama, qwen3:120b Vulkan): quiet 27.9 t/s vs balanced 29.5 t
 |---|---|
 | CPU | AMD Ryzen 7 5800X3D, 8C/16T |
 | GPU | NVIDIA TITAN RTX, 24 GB (24,030 MiB usable), compute capability 7.5 |
-| OS / driver | NVIDIA driver 610.57.04 (advertises CUDA 13.3) |
-| llama.cpp | b10443 (27df9199d), CUDA arch 75, `GGML_CUDA_FA=ON`, `GGML_CUDA_GRAPHS=ON` |
+| RAM | 62 GB |
+| Models | `/mnt/data/models/` |
+| OS | Arch Linux, kernel 7.2.9-arch1-1 |
+| Driver | NVIDIA 615.78.08 |
+| llama.cpp | 0.5.0-dev build 11222 (a97cce86a), CUDA arch 75, `/usr/local/bin/llama-server` |
+
+Results below were measured on the earlier install (driver 610.57.04, llama.cpp b10443 / 27df9199d, `GGML_CUDA_FA=ON`, `GGML_CUDA_GRAPHS=ON`). Re-baselined 2026-10-10 on the updated stack (driver 615.78.08, llama.cpp b11222) with identical methodology — Qwen3.8-27B Q4_K_M pp512 768.2 / tg128 30.2, pp2048@8K 711.2 / tg64@8K 29.2: no material delta, numbers stand.
 
 ## Strix results (Vulkan, UMA)
 
