@@ -1,0 +1,35 @@
+#!/bin/bash
+# Quick wrapper to set fans before/after LLM work
+# Usage: llm-fans on   (set to 100%)
+#        llm-fans off  (set to auto)
+
+case "$1" in
+    on|max|100)
+        echo "Setting fans to maximum for LLM work..."
+        sudo /home/bl/fan-control/fan-control.sh 100
+        ;;
+    off|auto)
+        echo "Returning fans to automatic control..."
+        sudo /home/bl/fan-control/fan-control.sh auto
+        ;;
+    75)
+        echo "Setting fans to 75%..."
+        sudo /home/bl/fan-control/fan-control.sh 75
+        ;;
+    50)
+        echo "Setting fans to 50%..."
+        sudo /home/bl/fan-control/fan-control.sh 50
+        ;;
+    status)
+        sensors | grep -A 10 "asusec-isa"
+        ;;
+    *)
+        echo "Usage: $0 {on|off|50|75|100|status}"
+        echo ""
+        echo "  on/max/100  - Set fans to 100% (for LLM work)"
+        echo "  off/auto    - Return to automatic"
+        echo "  50/75       - Set to specific percentage"
+        echo "  status      - Show current temps and fan speed"
+        exit 1
+        ;;
+esac

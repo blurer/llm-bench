@@ -1,0 +1,13 @@
+[Unit]
+Description=ASUS Fan Control - Set default fan speed
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/bl/fan-control/fan-control.sh 75
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

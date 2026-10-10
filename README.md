@@ -35,13 +35,25 @@ Throughput impact (Ollama, qwen3:120b Vulkan): quiet 27.9 t/s vs balanced 29.5 t
 |---|---|
 | CPU | AMD Ryzen 7 5800X3D, 8C/16T |
 | GPU | NVIDIA TITAN RTX, 24 GB (24,030 MiB usable), compute capability 7.5 |
+| GPU cooling | **Modded**: Morpheus II air cooler + 2x Noctua slim 120mm fans (stock blower removed) |
 | RAM | 62 GB |
 | Models | `/mnt/data/models/` |
 | OS | Arch Linux, kernel 7.2.9-arch1-1 |
 | Driver | NVIDIA 615.78.08 |
 | llama.cpp | 0.5.0-dev build 11222 (a97cce86a), CUDA arch 75, `/usr/local/bin/llama-server` |
 
+#### GPU fan control (scripts vendored in [`titan-cooling/`](titan-cooling/))
+
+The stock blower is gone; the Noctua fans run off motherboard PWM headers (the driver reports the GPU as fanless). Two enabled services manage them:
+
+- `fan-control.service` — pins **75%** at boot (`fan-control.sh 75`)
+- `fan-control-auto.service` — daemon (3s interval, 5°C hysteresis) stepping 50/75/100% at GPU 60/70/80°C, auto below 45°C (same ladder for CPU/chipset/board sensors)
+
+Effect on benchmarking: sustained LLM inference holds 75%+ with stable thermals/clocks between runs; below the 45°C floor the box is effectively silent. Manual override: `sudo fan-control.sh {25|50|75|100}`.
+
 Results below were measured on the earlier install (driver 610.57.04, llama.cpp b10443 / 27df9199d, `GGML_CUDA_FA=ON`, `GGML_CUDA_GRAPHS=ON`). Re-baselined 2026-10-10 on the updated stack (driver 615.78.08, llama.cpp b11222) with identical methodology — Qwen3.8-27B Q4_K_M pp512 768.2 / tg128 30.2, pp2048@8K 711.2 / tg64@8K 29.2: no material delta, numbers stand.
+
+Methodology notes for reproducing: fully GPU-offload (`-ngl 99`), FA on, verify the GPU is actually idle first (`nvidia-smi --query-gpu=memory.used --format=csv,noheader`) — a resident llama-server silently halves results.
 
 ## Strix results (Vulkan, UMA)
 
@@ -90,8 +102,7 @@ Threads/ubatch flat on both hosts for these models (t1-t32 measured). FA helps p
 
 ## TODO
 
-- [ ] Add `orchestrator.py` + `prompt.md`: deterministic-domain benchmark with deliberately planted flaws. Goal: see which models trip up on the flaws (if any) and gauge general output quality. Model-agnostic (same harness across strix + titan lineups), deterministic grading where possible.
-- [ ] Reformat both hosts onto the same base OS (titan is Arch, ws is Fedora Workstation) so runtime/driver versions are comparable across benchmark runs.
+- [ ] Add `orchestrator.py` + `prompt.md`: deterministic-domain benchmark with deliberately planted flaws. Goal: see which models trip up on the flaws (if any) and gauge general output quality. Model-agnostic (same harness across both hosts' lineups), deterministic grading where possible.
 - [ ] Context-length sweep: run pp and tg at increasing ctx depths (e.g. 4k/8k/16k/32k/64k), chart the pp:tg ratio vs ctx to find where each model/host drops off and how steeply.
 - [ ] Flag optimization per model for highest throughput: sweep threads/ubatch/FA/KV-type/spec-draft per model per host, lock in a tuned profile.
 

@@ -1,0 +1,72 @@
+# Automatic Fan Control Configuration
+# Copy this to /etc/fan-control-auto.conf and customize as needed
+#
+# Temperature thresholds guide:
+# - AUTO: Fans run at BIOS-controlled speeds
+# - 50%: Light cooling for moderate loads
+# - 75%: Increased cooling for sustained loads
+# - 100%: Maximum cooling for heavy compute (LLM inference, rendering, etc.)
+
+# ============================================================================
+# CPU Temperature Thresholds (°C)
+# ============================================================================
+CPU_TEMP_AUTO=45      # Below this: auto/BIOS control
+CPU_TEMP_50=60        # At or above: 50% fan speed
+CPU_TEMP_75=70        # At or above: 75% fan speed
+CPU_TEMP_100=80       # At or above: 100% fan speed
+
+# ============================================================================
+# GPU Temperature Thresholds (°C)
+# For Titan RTX (fanless) - these are critical since GPU relies on chassis fans
+# ============================================================================
+GPU_TEMP_AUTO=45      # Below this: auto/BIOS control
+GPU_TEMP_50=60        # At or above: 50% fan speed
+GPU_TEMP_75=70        # At or above: 75% fan speed (recommended for sustained loads)
+GPU_TEMP_100=80       # At or above: 100% fan speed (LLM inference, training)
+
+# ============================================================================
+# Chipset Temperature Thresholds (°C)
+# ============================================================================
+CHIPSET_TEMP_AUTO=40
+CHIPSET_TEMP_50=55
+CHIPSET_TEMP_75=65
+CHIPSET_TEMP_100=75
+
+# ============================================================================
+# Motherboard Temperature Thresholds (°C)
+# ============================================================================
+MB_TEMP_AUTO=35
+MB_TEMP_50=45
+MB_TEMP_75=50
+MB_TEMP_100=60
+
+# ============================================================================
+# Control Parameters
+# ============================================================================
+# Hysteresis (°C): Temperature must drop this many degrees below threshold
+# before fan speed is reduced. Prevents rapid oscillation.
+HYSTERESIS=5
+
+# Check interval (seconds): How often to check temperatures and adjust fans
+CHECK_INTERVAL=3
+
+# ============================================================================
+# Example Configurations
+# ============================================================================
+
+# Conservative (quieter, warmer):
+# - Increase all thresholds by 5-10°C
+# - Increase HYSTERESIS to 7-10°C
+# - Increase CHECK_INTERVAL to 5-10 seconds
+
+# Aggressive (cooler, louder):
+# - Decrease all thresholds by 5-10°C
+# - Decrease HYSTERESIS to 2-3°C
+# - Keep CHECK_INTERVAL at 2-3 seconds
+
+# Example: GPU-focused for LLM work
+# GPU_TEMP_AUTO=40
+# GPU_TEMP_50=50
+# GPU_TEMP_75=60
+# GPU_TEMP_100=70
+# (Start ramping fans earlier to keep GPU cool)

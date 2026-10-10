@@ -1,0 +1,20 @@
+[Unit]
+Description=Automatic Temperature-Based Fan Control for ASUS ROG STRIX B550-I
+After=multi-user.target
+Wants=lm-sensors.service
+
+[Service]
+Type=simple
+ExecStart=/home/bl/fan-control/fan-control-auto.sh _monitor
+ExecStop=/home/bl/fan-control/fan-control.sh auto
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
