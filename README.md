@@ -70,6 +70,9 @@ Methodology notes for reproducing: fully GPU-offload (`-ngl 99`), FA on, verify 
 | | + MTP draft 1 | | | 19.5 | 1.65x |
 | | + **MTP draft 3** | | | **27.1** | **2.30x**, 69-82% acceptance; draft 5/7 = 25.0 / 23.5 |
 | Nemotron-3.5 Lightning 30B-A3B | UD-Q4_K_M | 23.5 GiB | 1173 | 54.8 | t4 |
+| LFM2.5-24B-A2B (lfm2moe) | UD-Q4_K_XL | 13.9 GiB | 2216.9 | 100.2 | 2026-10-14; t8/ub2048. q8_0 KV: pp 2255.5, tg 98.8 (~neutral). @8K depth: pp2048 1652.4, tg64 89.2. Fastest pp+tg on strix; no MTP (no GGUF head exists; only vLLM/NVFP4 eagle3 for 8B variant) |
+| Qwen3.6-35B-A3B | UD-Q4_K_M-MTP @65k q8_0 | 21.1 GiB | — | 57.4 | 2026-10-14, baseline (no spec), rsync'd from titan |
+| | + **MTP draft 3** | | | **81.9** | +43%; code 88.6 / prose 75.2; draft 2 = 80.1; 1.7x gpt-oss-120b |
 | Gemma-4 26B-A4B | UD-IQ4_XS | 12.5 GiB | 1255.8 | 51.3 | |
 | | UD-Q4_K_M | 16.9 GiB | 1237.8 | 48.2 | |
 
@@ -86,19 +89,50 @@ llama.cpp builds by batch: Qwen3.5/GPT-OSS b8146 (2026-02-28); Qwen3.8-27B b1021
 | Qwen3.8-27B | Q4_K_M | 778.8 (t8) | 30.3 | @8K depth: pp2048 712.6, tg64 29.5 |
 | | UD-Q4_K_XL | 785-807 | 28.6 | faster pp, slower tg |
 | | + **MTP draft 2** | | **49.7** | +61%; 92% accept code / 56% prose; draft 5/7 degrade |
+| | UD-Q4_K_XL @65k q8_0 KV | 743.7 | 28.2 | 2026-10-14: c65536, q8_0 both, b/ub 2048, t8; 19.5 GiB |
+| | + **MTP draft 2** | | **49.0** | +74%; 20.8 GiB; draft 1/3 = 43.4/48.2; code 54.1, prose 44.0 |
+
+The older `+ MTP draft 2 49.7` row is the **uncensored Q4_K_M** GGUF (see its notes doc); the 2026-10-14 `@65k` rows are the plain unsloth UD-Q4_K_XL. llama-bench has no spec support in the b11222 build, so MTP figures come from the server-request method (coding + DNS prompts ×2, 128 tokens, temp 0 seed 42, ignore EOS, no prompt cache; mean per-request + harmonic aggregate t/s). The 65k q8_0 server-request baseline (28.20) matches llama-bench tg128 (28.16) — parity holds at q8_0/65k too. KV q8_0 costs ~1.5% tg vs f16 at shallow depth (28.16 vs ~28.6). Raw: titan `/tmp/qwen38-ud-mtp-20261014/`.
 | Nemotron-3.5 Lightning 30B-A3B | UD-Q4_K_M | 2422 | 132.7 | t16 |
 | Qwen3.6-35B-A3B | UD-Q4_K_M | 2140 | 115.3 | full offload, 20.6 GiB |
+| LFM2.5-24B-A2B (lfm2moe) | UD-Q4_K_XL | 3407.8 | 190.7 | 2026-10-14; t8/ub2048. Fastest model on either host. @130k depth tg512: **101.1 with f16 KV** (server peak 17.8 GiB @131k) vs 68.3 with q8_0 — f16 KV wins at 128k (+48%); threads t8/t16, ub 512/2048, FA on/off all flat. **Quality verdict: benched it, user rejected it** — terrible outputs on real agent work (s01 capacity-planning task) despite speed; Qwen3.6-MTP is the working default |
+| | UD-Q4_K_M-MTP @65k q8_0 | 2180 | 113.4 | 2026-10-14: MTP-embedded rebuild (unsloth MTP-GGUF repo); 21.1 GiB, head costs ~0 |
+| | + **MTP draft 2** | | **176.4** | +58% vs same-file baseline (server method); 23.4 GiB peak; code 186.7, prose 166.2; draft 3 = 177.8 mean but 159 on prose |
 | Gemma-4 26B-A4B | UD-IQ4_XS | 2674 | 96.6 | 89.8 @ 8K depth |
 | gpt-oss-20b | — | — | 142 | from ranking table only |
 
 Threads/ubatch flat on both hosts for these models (t1-t32 measured). FA helps pp on CUDA (+17.6% at 8K depth) but is near-neutral on Vulkan at shallow context.
 
+## Decision models (Clef / d1 / Jev)
+
+Decision models read a `state` + typed questions (`noul` true/false, `choice`, `score`) and return calibrated probabilities for every option in **one forward pass** — no text generation. Detailed per-model write-ups live on titan (`~/models/decision-models-report.md`, `clef-flash.md`, `d1-3b.md`).
+
+**Local lineup** (all benchmarked 2026-10-11 on Titan RTX, llama.cpp `build-clef` v0.6.0-dev b11553):
+
+| model | base | size | 1-q short msg | 3-q short msg | VRAM |
+|---|---|---|---:|---:|---|
+| Cloudflare Clef-Flash | Qwen3.5-9B + Clef head | 9B Q8_0 | 75.3 ms | 124.7 ms | 9.3 GB |
+| Liquid d1-3B | LFM2.5-VL-3B | 3.1B Q8_0 | 12.5 ms | 42.5 ms | 4.5-6.3 GB |
+| clef-text-0.6b (CoreML) | Qwen3-0.6B distilled | 0.7B | 47.9 ms (M4 mini) | 114.8 ms | 1.3 GB |
+
+d1-3B is 6x faster on short requests (LFM tokenizer efficiency); parity on long docs. Serving quirks: clef arch needs llama.cpp v0.6.0+, only `/v1/systemone` endpoint, and the whole prompt must fit one micro-batch (`-b`/`-ub` >= prompt). Jev-1.13 is Cloud-hosted only (OpenRouter decisions API — `jev_eval.py`). llmgr: `titan-dec` pseudo-host serves these on port 8095 (`llm start titan-dec d1-3b | clef-flash`).
+
+**Capacity-planning decision model POC (2026-10-15, trained on Titan RTX with Unsloth).** Custom typed-decisions dataset generated from the scenario world model (`~/wrk/decision-poc/gen_dataset.py`): 1,200 rows, 4 questions per record (risk noul / action choice / severity score / defect noul), gold computed by rule. Trained Clef-head via `FastDecisionModel` LoRA r16, 120 steps:
+
+| round | dataset | qwen3.5-0.8B | LFM2.5-2.6B | LFM2-8B-A1B | notes |
+|---|---|---:|---:|---:|---|
+| r1 | LSQ slope, severity = hidden division | 55.75% (ECE .030) | 55.75% (ECE .030) | — | exact tie: both learned the same decision function — data floor, not capacity |
+| r2 | twopoint slope, utilization% printed in state | 59.25% | **62.5%** | — | risk 63→75%, action 54→67%; severity: qwen still 26% (chance), LFM 39% |
+| r3 | same as r2 | — | — | **65.5%** | best trained; entire edge is severity (51% vs 39%); risk/action/defect pinned at the same 75/67/69 ceiling for every model — data-bound |
+
+Training cost: 7 min (0.8B) / 25 min (2.6B) on Titan RTX, ~2.7-6 GB VRAM, fp32 head (Turing: no bf16; Qwen3.5/LFM overflow fp16 autocast). Zero-shot decision models (Clef-Flash, d1-3B) on the same holdout: pending. Raw: titan `/mnt/data/decision-poc/`, scripts `~/wrk/decision-poc/`.
+
 ## Cross-host insights
 
 - Strix tg ceiling is UMA bandwidth: tg ~ bandwidth / weight-GiB at ~73% efficiency — smaller quant = proportionally faster tg.
 - pp is 23-25x cheaper per token than tg on both hosts (SSM hybrid makes long prompts cheap).
-- MTP is the only large tg lever measured: 2.30x on strix (draft 3), +61% on titan (draft 2); optimal draft size differs by hardware and prompt type.
-- KV q8_0 ~neutral perf; only worthwhile at 32k+ context (halves KV memory).
+- MTP is the only large tg lever measured: 2.30x on strix (draft 3), +61% on titan (draft 2), +74% on titan UD-Q4_K_XL @65k q8_0 (draft 2), +58% on titan Qwen3.6-35B-A3B (draft 2, 112→176 t/s — past the 1.2x threshold in the old notes), +43% on strix Qwen3.6-35B-A3B (draft 3, 57→82 t/s — now 1.7x faster than gpt-oss-120b on ws); optimal draft size differs by hardware and prompt type (strix favors 3, titan favors 2).
+- KV q8_0 ~neutral perf; only worthwhile at 32k+ context (halves KV memory). Exception: lfm2moe @130k depth — q8_0 KV costs 34% tg vs f16 (68.3 vs 101.1 t/s on titan); prefer f16 KV when it fits.
 
 ## TODO
 
